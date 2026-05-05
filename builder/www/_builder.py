@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.integrations.frappe_providers.frappecloud_billing import is_fc_site
 from frappe.pulse.utils import get_app_version
 from frappe.utils.telemetry import capture
@@ -20,3 +21,12 @@ def get_context(context):
 	context.is_fc_site = is_fc_site()
 	if frappe.session.user != "Guest":
 		capture("active_site", "builder")
+	return context
+
+
+@frappe.whitelist(methods=["POST"], allow_guest=True)
+def get_context_for_dev():
+	if not frappe.conf.developer_mode:
+		frappe.throw(_("This method is only meant for developer mode"))
+	context = frappe._dict()
+	return get_context(context)

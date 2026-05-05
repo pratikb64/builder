@@ -1,6 +1,6 @@
 import { createApp } from "vue";
 
-import { Button, FeatherIcon, FormControl, FrappeUI } from "frappe-ui";
+import { Button, FeatherIcon, FormControl, frappeRequest, FrappeUI } from "frappe-ui";
 import { telemetryPlugin } from "frappe-ui/frappe";
 import { createPinia } from "pinia";
 import "./index.css";
@@ -11,6 +11,7 @@ import "./utils/arrayFunctions";
 import App from "@/App.vue";
 import BuilderButton from "@/components/Controls/BuilderButton.vue";
 import Input from "@/components/Controls/Input.vue";
+import { initSocket } from "./socket";
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -29,7 +30,6 @@ app.component("FormControl", FormControl);
 app.component("BuilderInput", Input);
 
 app.component("FeatherIcon", FeatherIcon);
-app.mount("#app");
 
 declare global {
 	interface Window {
@@ -47,4 +47,27 @@ if (window.is_developer_mode && typeof window.is_developer_mode === "string") {
 
 if (window.builder_version && window.builder_version.startsWith("{{")) {
 	window.builder_version = "develop";
+}
+
+let socket;
+
+if (import.meta.env.DEV) {
+	frappeRequest({
+		url: "/api/method/builder.www._builder.get_context_for_dev",
+	}).then((values) => {
+		console.log("🚀 ~ values:", values);
+		for (let key in values) {
+			window[key] = values[key];
+		}
+		socket = initSocket();
+		console.log("🚀 ~ socket:", socket);
+		app.config.globalProperties.$socket = socket;
+		app.mount("#app");
+	});
+	console.log("mounted at dev", app.config.globalProperties);
+} else {
+	socket = initSocket();
+	app.config.globalProperties.$socket = socket;
+	app.mount("#app");
+	console.log("mounted at prod", app.config.globalProperties);
 }
