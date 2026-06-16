@@ -35,6 +35,7 @@ class BuilderClientScript(Document):
 	def on_update(self):
 		self.update_script_file()
 		self.update_exported_script()
+		self.update_standard_page_exports()
 
 	def on_trash(self):
 		self.delete_script_file()
@@ -85,3 +86,34 @@ class BuilderClientScript(Document):
 				record_list=[["Builder Client Script", self.name, "builder_client_script"]],
 				record_module="builder",
 			)
+
+	def update_standard_page_exports(self):
+		"""Re-export this script into the builder_files directory of every app whose
+		standard pages reference it. Editing a script directly (outside the page save
+		flow) would otherwise leave the copy bundled with the standard page stale."""
+		if not frappe.conf.developer_mode:
+			return
+
+		from builder.utils import export_client_script
+
+		referencing_pages = frappe.get_all(
+			"Builder Page Client Script",
+			filters={"builder_script": self.name, "parenttype": "Builder Page"},
+			pluck="parent",
+		)
+		if not referencing_pages:
+			return
+
+		target_apps = {
+			page.app
+			for page in frappe.get_all(
+				"Builder Page",
+				filters={"name": ["in", referencing_pages], "is_standard": 1, "app": ["is", "set"]},
+				fields=["app"],
+			)
+		}
+
+		for app in target_apps:
+			app_path = frappe.get_app_path(app)
+			client_scripts_path = os.path.join(app_path, "builder_files", "client_scripts")
+			export_client_script(self, client_scripts_path)

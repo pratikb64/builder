@@ -582,22 +582,27 @@ def extract_components_from_blocks(blocks):
 	return components
 
 
-def export_client_scripts(page_doc, client_scripts_path):
-	"""Export client scripts for a page"""
+def export_client_script(script_doc, client_scripts_path):
+	"""Export a single client script to the given client_scripts directory"""
 	from frappe.modules.export_file import strip_default_fields
 
+	script_config = script_doc.as_dict(no_nulls=True)
+	script_config = strip_default_fields(script_doc, script_config)
+	fname = frappe.scrub(str(script_doc.name))
+	# ensure the target directory exists before writing the file
+	script_dir = os.path.join(client_scripts_path, fname)
+	os.makedirs(script_dir, exist_ok=True)
+	script_file_path = os.path.join(script_dir, f"{fname}.json")
+
+	with open(script_file_path, "w", encoding="utf-8") as f:
+		f.write(frappe.as_json(script_config, ensure_ascii=False))
+
+
+def export_client_scripts(page_doc, client_scripts_path):
+	"""Export client scripts for a page"""
 	for script_row in page_doc.client_scripts:
 		script_doc = frappe.get_doc("Builder Client Script", script_row.builder_script)
-		script_config = script_doc.as_dict(no_nulls=True)
-		script_config = strip_default_fields(script_doc, script_config)
-		fname = frappe.scrub(str(script_doc.name))
-		# ensure the target directory exists before writing the file
-		script_dir = os.path.join(client_scripts_path, fname)
-		os.makedirs(script_dir, exist_ok=True)
-		script_file_path = os.path.join(script_dir, f"{fname}.json")
-
-		with open(script_file_path, "w", encoding="utf-8") as f:
-			f.write(frappe.as_json(script_config, ensure_ascii=False))
+		export_client_script(script_doc, client_scripts_path)
 
 
 def export_components(components, components_path, assets_path, target_app="builder"):

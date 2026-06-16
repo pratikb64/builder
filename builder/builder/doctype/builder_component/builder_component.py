@@ -36,6 +36,7 @@ class BuilderComponent(Document):
 	def on_update(self):
 		self.queue_action("clear_page_cache")
 		self.update_exported_component()
+		self.update_standard_page_exports()
 
 	def clear_page_cache(self):
 		pages = frappe.get_all("Builder Page", filters={"published": 1}, fields=["name"])
@@ -72,6 +73,34 @@ class BuilderComponent(Document):
 				record_list=[["Builder Component", self.name, "builder_component"]],
 				record_module="builder",
 			)
+
+	def update_standard_page_exports(self):
+		"""Re-export this component to the builder_files directory of every app
+		whose standard pages reference it directly."""
+		if not frappe.conf.developer_mode:
+			return
+
+		from builder.utils import export_components, get_export_paths
+
+		referencing_pages = frappe.get_all(
+			"Builder Page",
+			filters={"is_standard": 1, "app": ["is", "set"]},
+			or_filters={
+				"blocks": ["like", f"%{self.component_id}%"],
+				"draft_blocks": ["like", f"%{self.component_id}%"],
+			},
+			fields=["app"],
+		)
+		if not referencing_pages:
+			return
+
+		target_apps = {page.app for page in referencing_pages if page.app}
+		for app in target_apps:
+			app_path = frappe.get_app_path(app)
+			paths = get_export_paths(app_path, "")
+			os.makedirs(paths["components_path"], exist_ok=True)
+			os.makedirs(paths["assets_path"], exist_ok=True)
+			export_components({self.name}, paths["components_path"], paths["assets_path"], app)
 
 
 class ComponentSyncer:
